@@ -1,8 +1,9 @@
 
-#Import "../renderwindow"
+#Import "../renderwindow>"
 #Import "<mojo>"
 
 Using mojo..
+Using std..
 
 Class TestWindow Extends RenderWindow
 
