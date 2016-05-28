@@ -1,5 +1,5 @@
 
-#Import "../renderwindow>"
+#Import "../renderwindow"
 #Import "<mojo>"
 
 Using mojo..
