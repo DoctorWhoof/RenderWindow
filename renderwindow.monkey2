@@ -168,7 +168,20 @@ Class RenderWindow Extends Window
 	End
 	
 	
-	Method SetVirtualResolution( width:Int, height:Int )	
+	Method OnWindowEvent(event:WindowEvent) Override
+		Select event.Type
+			Case EventType.WindowMoved
+			Case EventType.WindowResized
+				App.RequestRender()
+			Case EventType.WindowGainedFocus
+			Case EventType.WindowLostFocus
+			Default
+				Super.OnWindowEvent(event)
+		End
+	End
+	
+	
+	Method SetVirtualResolution( width:Int, height:Int )
 		_virtualRes = New Vec2i( width, height )
 		MinSize = New Vec2i( width/2, height/2 )
 		camera.Width = width
