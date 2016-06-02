@@ -9,7 +9,7 @@ Class TestWindow Extends RenderWindow
 
 	Method New()					
 		Super.New( "Test", 1280, 720, False, False )		'name, width, height, filterTextures, renderToTexture
-		bgColor = Color.DarkGrey
+		bgColor = Color.DarkGrey	
 	End
 	
 	Method OnUpdate() Override
