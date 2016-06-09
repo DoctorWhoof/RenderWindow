@@ -8,9 +8,6 @@ Features:
 - Display debug info on screen with Echo( "info" )
 #End
 
-'To Do: camera is a rect. SHould it be a Vec2f? Of should I take advantage of the rect and change the code?
-'To do: Integer scaling
-
 #Import "<mojo>"
 #Import "area"
 
@@ -29,7 +26,11 @@ Class RenderWindow Extends Window
 	Field debug := False						'Toggles display of debug info ( Echo() )
 	
 	Protected
+	
+	Global _echoStack:= New Stack<String>		'Contains all the text messages to be displayed
+	
 	Field _init := False
+	Field _flags :TextureFlags					'flags used on the render texture
 	
 	Field _parallax := 1.0
 	Field _parallaxCam :Area<Double>
@@ -39,8 +40,6 @@ Class RenderWindow Extends Window
 	Field _adjustedMouse := New Vec2i			'Mouse corrected for layout style and camera position
 	Field _layerInitiated := False
 
-	Field _echoStack:= New Stack<String>		'Contains all the text messages to be displayed
-	Field _flags :TextureFlags					'flags used on the render texture
 	
 	Field _fps	:= 60							'fps counter
 	Field _fpscount	:= 0.0						'temporary fps counter
@@ -120,8 +119,8 @@ Class RenderWindow Extends Window
 		ClearColor = borderColor
 		Style.BackgroundColor = bgColor
 		
-		_flags = TextureFlags.DefaultFlags
-		If Not filterTextures Then _flags &=~ TextureFlags.Filter		
+		_flags = Null
+		If filterTextures Then _flags|=TextureFlags.Filter
 		
 		Self.renderToTexture = renderToTexture
 		Self.filterTextures = filterTextures
@@ -187,11 +186,6 @@ Class RenderWindow Extends Window
 		Next
 		_echoStack.Clear()
 		
-		'App quit
-		If ( Keyboard.KeyDown( Key.LeftGui ) And Keyboard.KeyHit( Key.Q ) ) Or ( Keyboard.KeyDown( Key.LeftAlt ) And Keyboard.KeyHit( Key.W ) )
-			App.Terminate()
-		End
-		
 		'Basic fps counter
 		If Millisecs() - _tick > 1008
 			_fps = _fpscount
@@ -200,12 +194,18 @@ Class RenderWindow Extends Window
 		Else
 			_fpscount +=1
 		End
+		
+		'App quit
+		If ( Keyboard.KeyHit( Key.Escape ) ) 
+			App.Terminate()
+		End
 	End
 	
 	
 	Method OnMeasure:Vec2i() Override
 		Return _virtualRes
-	End
+	End		
+
 	
 	
 	Method OnWindowEvent(event:WindowEvent) Override
@@ -236,12 +236,7 @@ Class RenderWindow Extends Window
 		_textureCanvas = New Canvas( _renderImage )
 		_textureCanvas.Font = App.DefaultFont
 	End
-	
-	
-	Method Echo( text:String )
-		_echoStack.Push( text )
-	End
-	
+
 
 	Method CycleLayout()
 		Select Layout
@@ -310,6 +305,12 @@ Class RenderWindow Extends Window
 	End
 	
 	Method OnDraw() Virtual
+	End
+
+	'**************************************************** Static functions ****************************************************
+	
+	Function Echo( text:String )
+		_echoStack.Push( text )
 	End
 	
 End
