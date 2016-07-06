@@ -9,6 +9,7 @@ Features:
 #End
 
 #Import "<mojo>"
+#Import "<std>"
 #Import "area"
 
 Using mojo..
@@ -30,6 +31,7 @@ Class RenderWindow Extends Window
 	Global _echoStack:= New Stack<String>		'Contains all the text messages to be displayed
 	
 	Field _init := False
+	Field _firstFrame := True					'Ensures OnCreate only runs after Window has properly initialized
 	Field _flags :TextureFlags					'flags used on the render texture
 	
 	Field _parallax := 1.0
@@ -39,6 +41,8 @@ Class RenderWindow Extends Window
 	Field _mouse := New Vec2i					'temporarily stores mouse coords
 	Field _adjustedMouse := New Vec2i			'Mouse corrected for layout style and camera position
 	Field _layerInitiated := False
+	
+	Field _width:Int, _height:Int				'Temporarily stores width and height so that init can occur at first frame
 
 	
 	Field _fps	:= 60							'fps counter
@@ -71,9 +75,7 @@ Class RenderWindow Extends Window
 			_layerInitiated = False
 		End
 		canvas.PushMatrix()
-'   		canvas.Translate( ( -camera.X * _parallax ) + _cameraOffset.X, ( -camera.Y * _parallax ) + _cameraOffset.Y  )
 		canvas.Translate( ( -camera.X * _parallax ) + camera.Width/2.0, ( -camera.Y * _parallax ) + camera.Height/2.0  )
-
 		_layerInitiated = True
 	End
 	
@@ -115,6 +117,12 @@ Class RenderWindow Extends Window
 	
 	Method New( title:String, width:Int, height:Int, filterTextures:Bool = True, renderToTexture:Bool = False, flags:WindowFlags = WindowFlags.Resizable )
 		Super.New( title, width, height, flags )
+
+		camera = New Area<Double>( 0, 0, width, height )
+		_parallaxCam = New Area<Double>( 0, 0, width, height )
+		_width = width
+		_height = height
+
 		Layout = "letterbox"
 		ClearColor = borderColor
 		Style.BackgroundColor = bgColor
@@ -125,33 +133,29 @@ Class RenderWindow Extends Window
 		Self.renderToTexture = renderToTexture
 		Self.filterTextures = filterTextures
 		
-		camera = New Area<Double>( 0, 0, width, height )
-		_parallaxCam = New Area<Double>( 0, 0, width, height )
-		
-		SetVirtualResolution( width, height )
-'   		SelectCanvas()
 	End
 	
 
 	Method OnRender( windowCanvas:Canvas ) Override
 		App.RequestRender()
+		Self._windowCanvas = windowCanvas
 		
 		If Not _init
 			_init = True
-'   			canvas = windowCanvas
-			SelectCanvas()
-			WindowStart()
+			SetVirtualResolution( _width, _height )
+			SelectCanvas()	
 			Return
+		Else
+			If _firstFrame
+				_firstFrame = False
+				SendStartEvent()
+				Return
+			End
+			SelectCanvas()
 		End
 		
-		FrameUpdate()
+		SendUpdateEvent()
 		
-		Style.BackgroundColor = bgColor
-		Self._windowCanvas = windowCanvas
-		
-		'Picks current drawing canvas based on renderToTexture
-		SelectCanvas()
-
 		'Mouse in world coordinates
 		_mouse = TransformPointFromView( App.MouseLocation, Null )
 		_adjustedMouse.x = _mouse.x + camera.Left
@@ -159,7 +163,7 @@ Class RenderWindow Extends Window
 		
 		'the Parallax property will always set the canvas translation before drawing.
 		Parallax = 1.0		
-		FrameDraw()
+		SendDrawEvent()
 		
 		''Closes' the drawing for any parallax layer
 		If _layerInitiated
@@ -169,6 +173,7 @@ Class RenderWindow Extends Window
 		
 		'Draws render to texture image onto _windowCanvas
 		If renderToTexture
+			_windowCanvas.Clear( Color.Black )
 			canvas.Flush()
 			_windowCanvas.DrawImage( _renderImage, 0, 0 )
 		End
@@ -194,20 +199,14 @@ Class RenderWindow Extends Window
 		Else
 			_fpscount +=1
 		End
-		
-		'App quit
-		If ( Keyboard.KeyHit( Key.Escape ) ) 
-			App.Terminate()
-		End
 	End
 	
 	
 	Method OnMeasure:Vec2i() Override
 		Return _virtualRes
-	End		
+	End
 
-	
-	
+
 	Method OnWindowEvent(event:WindowEvent) Override
 		Select event.Type
 			Case EventType.WindowMoved
@@ -220,36 +219,26 @@ Class RenderWindow Extends Window
 		End
 	End
 	
-
+	
 	Method SetVirtualResolution( width:Int, height:Int )
 		_virtualRes = New Vec2i( width, height )
 		MinSize = New Vec2i( width/2, height/2 )
 		
+		_width = width
+		_height = height
 		camera.Width = width
 		camera.Height = height
-		_parallaxCam.Width = Width
-		_parallaxCam.Height = Height
+		_parallaxCam.Width = width
+		_parallaxCam.Height = height
 		
 		_renderTexture = New Texture( width, height, PixelFormat.RGBA32, _flags )
 		_renderImage = New Image( _renderTexture )
 		_renderImage.Handle=New Vec2f( 0, 0 )
 		_textureCanvas = New Canvas( _renderImage )
-		_textureCanvas.Font = App.DefaultFont
-	End
+'   		_textureCanvas.Font = App.DefaultFont
 
-
-	Method CycleLayout()
-		Select Layout
-		Case "fill"
-			Layout="letterbox"
-		Case "letterbox"
-			Layout="stretch"
-		Case "stretch"
-			Layout="float"
-		Case "float"
-'   			Layout="fill"
-			Layout = "letterbox"
-		End
+		_windowCanvas.TextureFilteringEnabled = filterTextures
+		_textureCanvas.TextureFilteringEnabled = filterTextures
 	End
 	
 	
@@ -259,34 +248,34 @@ Class RenderWindow Extends Window
 	
 	Protected
 	
-	Method WindowStart() Virtual
+	Method SendStartEvent() Virtual
 		OnStart()
 	End
 	
-	Method FrameUpdate() Virtual
+	Method SendUpdateEvent() Virtual
 		OnUpdate()
 	End
 	
-	Method FrameDraw() Virtual
+	Method SendDrawEvent() Virtual
 		OnDraw()
 	End
 	
 	Method DebugInfo() Virtual
 		Echo( "Window resolution: " + Frame.Width + ", " + Frame.Height )
 		Echo( "Virtual resolution: " + Width + ", " + Height )
+		Echo( "Camera: " + camera.ToString() )
 		Echo( "Mouse:" + Mouse.x + "," + Mouse.y )
-		Echo( "Camera:" + Int( camera.X ) + "," + Int( camera.Y ) )
 		Echo( "Layout: " + Layout )
 		If renderToTexture
 			Echo( "renderToTexture = True" )
 		Else
 			Echo( "renderToTexture = False" )
 		End
-		Echo( "Camera: " + camera.ToString() )
 		Echo( "FPS: " + FPS )
 	End
 	
 	Method SelectCanvas()
+		Style.BackgroundColor = bgColor
 		If renderToTexture
 			canvas = _textureCanvas
 		Else

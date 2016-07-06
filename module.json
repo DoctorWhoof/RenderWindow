@@ -1,0 +1,5 @@
+{
+	"module":"renderwindow",
+	"version":"1.0.0",
+	"depends":["mojo","std"]
+}
