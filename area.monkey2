@@ -72,6 +72,14 @@ Class Area<T>
 		Return _handle
 	End
 	
+	Property HalfWidth:T()
+		Return _width/2.0
+	End
+
+	Property HalfHeight:T()
+		Return _height/2.0
+	End
+	
 	Property Rect:Rect<T>()
 		_rect.Left = _x0
 		_rect.Top = _y0
