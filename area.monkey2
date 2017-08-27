@@ -133,12 +133,24 @@ Class Area<T>
 		Position( _vec.X + deltaX, _vec.Y +deltaY )
 	End
 '   
-	Method Contains:Bool(_x:Float, _y:Float)
-		If _x > _x0
-			If _x < _x1
-				If _y > _y0
-					If _y < _y1
-						Return True
+	Method Contains:Bool(_x:Float, _y:Float, hMargin:T = 0, vMargin:T = 0 )
+		If hMargin Or vMargin
+			If _x > _x0 + hMargin
+				If _x < _x1 - hMargin
+					If _y > _y0 + vMargin
+						If _y < _y1 - vMargin
+							Return True
+						End
+					End
+				End
+			End
+		Else
+			If _x > _x0
+				If _x < _x1
+					If _y > _y0
+						If _y < _y1
+							Return True
+						End
 					End
 				End
 			End
@@ -146,12 +158,24 @@ Class Area<T>
 		Return False
 	End
 
-	Method Overlaps:Bool( rect:Area )
-		If rect._x1 > _x0
-			If rect._x0 < _x1
-				If rect._y1 > _y0
-					If rect._y0 < _y1
-						Return True
+	Method Overlaps:Bool( rect:Area, hMargin:T = 0, vMargin:T = 0 )
+		If hMargin Or vMargin
+			If rect._x1 > _x0 + hMargin
+				If rect._x0 < _x1 - hMargin
+					If rect._y1 > _y0 + vMargin
+						If rect._y0 < _y1 - vMargin
+							Return True
+						End
+					End
+				End
+			End		
+		Else
+			If rect._x1 > _x0
+				If rect._x0 < _x1
+					If rect._y1 > _y0
+						If rect._y0 < _y1
+							Return True
+						End
 					End
 				End
 			End

@@ -9,6 +9,7 @@ Features:
 #End
 
 #Import "<mojo>"
+#Import "<std>"
 #Import "area"
 
 Using mojo..
@@ -17,33 +18,33 @@ Using std..
 Class RenderWindow Extends Window
 
 	Field canvas :Canvas						'Main canvas currently in use
-	Field camera :Area<Float>					'Camera coordinates
+	Field camera :Area<Double>					'Camera coordinates
 	
-	Field paused := False						'Pauses update but still renders
 	Field renderToTexture := False				'Causes all canvas rendering to be directed to a fixed size texture
 	Field filterTextures := True				'Turns on/off texture smoothing. Off for pixel art.
 	Field bgColor := Color.DarkGrey				'Background color
 	Field borderColor := Color.Black 			'Letterboxing border color
-	
-	Global debug := False						'Toggles display of debug info ( Echo() )
+	Field debug := False						'Toggles display of debug info ( Echo() )
 	
 	Protected
 	
 	Global _echoStack:= New Stack<String>		'Contains all the text messages to be displayed
 	
-	Field _init := False						'Allows init code to run only once
+	Field _init := False
 	Field _firstFrame := True					'Ensures OnCreate only runs after Window has properly initialized
-	Field _drawLoadingScreen := True			'If true, calls DrawLoadingScreen() on start
 	Field _flags :TextureFlags					'flags used on the render texture
 	
 	Field _parallax := 1.0
-	Field _parallaxCam :Area<Float>
+	Field _parallaxCam :Area<Double>
 	
 	Field _virtualRes:= New Vec2i				'Virtual rendering size
 	Field _mouse := New Vec2i					'temporarily stores mouse coords
 	Field _adjustedMouse := New Vec2i			'Mouse corrected for layout style and camera position
 	Field _layerInitiated := False
-		
+	
+	Field _width:Int, _height:Int				'Temporarily stores width and height so that init can occur at first frame
+
+	
 	Field _fps	:= 60							'fps counter
 	Field _fpscount	:= 0.0						'temporary fps counter
 	Field _tick := 0							'Only stores the current time once every second
@@ -53,15 +54,8 @@ Class RenderWindow Extends Window
 	Field _textureCanvas :Canvas				'Canvas that uses _renderImage
 	Field _windowCanvas: Canvas					'main window canvas
 	
-	Field _updateDuration:Float					'time elapsed for one frame update, in float millisecs
-	Field _renderDuration:Float					'time elapsed for one frame render, in float millisecs
-	Field _lastUpdateStart:Int					'when the last update started, in microsecs
-	Field _lastRenderStart:Int					'when the last render started, in microsecs
-	
-	Field _width:Int, _height:Int				'Temporarily stores width and height so that init can occur at first frame, after New()
-	Field _textureFilter:TextureFilter			'Controls the canvas texture filtering
-
 	Public
+	
 	
 	'**************************************************** Properties ****************************************************
 	
@@ -86,7 +80,7 @@ Class RenderWindow Extends Window
 	End
 	
 	'Returns the camera corrected for current parallax 
-	Property CameraRect:Rect<Float>()
+	Property CameraRect:Rect<Double>()
 		Return _parallaxCam.Rect
 	End
 	
@@ -124,8 +118,8 @@ Class RenderWindow Extends Window
 	Method New( title:String, width:Int, height:Int, filterTextures:Bool = True, renderToTexture:Bool = False, flags:WindowFlags = WindowFlags.Resizable )
 		Super.New( title, width, height, flags )
 
-		camera = New Area<Float>( 0, 0, width, height )
-		_parallaxCam = New Area<Float>( 0, 0, width, height )
+		camera = New Area<Double>( 0, 0, width, height )
+		_parallaxCam = New Area<Double>( 0, 0, width, height )
 		_width = width
 		_height = height
 
@@ -134,51 +128,33 @@ Class RenderWindow Extends Window
 		Style.BackgroundColor = bgColor
 		
 		_flags = Null
-'   		If filterTextures Then _flags|=TextureFlags.Filter
-		If filterTextures
-			_textureFilter = TextureFilter.Linear | TextureFilter.Mipmap
-		Else
-			_textureFilter = TextureFilter.Nearest
-		End
+		If filterTextures Then _flags|=TextureFlags.Filter
 		
 		Self.renderToTexture = renderToTexture
 		Self.filterTextures = filterTextures
+		
 	End
 	
 
-	Method OnRender( windowCanvas:Canvas ) Override Final
+	Method OnRender( windowCanvas:Canvas ) Override
 		App.RequestRender()
 		Self._windowCanvas = windowCanvas
 		
 		If Not _init
-			'Basic initialization, creates texture canvas, set resolution, etc.
 			_init = True
 			SetVirtualResolution( _width, _height )
-			
+			SelectCanvas()	
 			Return
 		Else
 			If _firstFrame
-				If _drawLoadingScreen
-					DrawLoadingScreen()
-					_drawLoadingScreen = False
-					Return
-				Else
-					'This only runs after Window finishes initializing properly, otherwise things like Width aren't set correctly
-					_firstFrame = False
-					'Calls OnCreate()
-					SendStartEvent()
-					Return
-				End				
+				_firstFrame = False
+				SendStartEvent()
+				Return
 			End
-			'picks the appropriate rendering canvas. Just do all your drawing on 'canvas'.
 			SelectCanvas()
 		End
 		
-		'Calls OnUpdate()
-		_lastUpdateStart = Microsecs()
-		
-		DebugInfo()
-		If Not paused Then SendUpdateEvent()
+		SendUpdateEvent()
 		
 		'Mouse in world coordinates
 		_mouse = TransformPointFromView( App.MouseLocation, Null )
@@ -186,12 +162,7 @@ Class RenderWindow Extends Window
 		_adjustedMouse.y = _mouse.y + camera.Top
 		
 		'the Parallax property will always set the canvas translation before drawing.
-		Parallax = 1.0
-		canvas.TextureFilter = _textureFilter
-		
-		'Finished timing the current update, starts rendering
-		_updateDuration = ( Microsecs() - _lastUpdateStart ) / 1000.0
-		_lastRenderStart = Microsecs()	
+		Parallax = 1.0		
 		SendDrawEvent()
 		
 		''Closes' the drawing for any parallax layer
@@ -203,7 +174,7 @@ Class RenderWindow Extends Window
 		'Draws render to texture image onto _windowCanvas
 		If renderToTexture
 			_windowCanvas.Clear( Color.Black )
-			_textureCanvas.Flush()
+			canvas.Flush()
 			_windowCanvas.DrawImage( _renderImage, 0, 0 )
 		End
 		
@@ -211,11 +182,8 @@ Class RenderWindow Extends Window
 		_textureCanvas.Color = Color.White
 		_windowCanvas.Color = Color.White
 		
-		'Finishes timing the current render before messages are displayed
-		_windowCanvas.Flush()
-		_renderDuration = ( Microsecs() - _lastRenderStart ) / 1000.0
-		
 		'Draw message stack, then clear it every frame
+		If debug Then DebugInfo()
 		Local y := 2
 		For Local t := Eachin _echoStack
 			_windowCanvas.DrawText( t, 5, y )
@@ -230,16 +198,6 @@ Class RenderWindow Extends Window
 			_fpscount=0
 		Else
 			_fpscount +=1
-		End
-		
-		'App quit
-		If Keyboard.KeyHit( Key.Escape )
-			App.Terminate()
-		End
-		
-		'Pause
-		If Keyboard.KeyHit( Key.P )
-			paused = Not paused
 		End
 	End
 	
@@ -277,6 +235,7 @@ Class RenderWindow Extends Window
 		_renderImage = New Image( _renderTexture )
 		_renderImage.Handle=New Vec2f( 0, 0 )
 		_textureCanvas = New Canvas( _renderImage )
+'   		_textureCanvas.Font = App.DefaultFont
 
 		_windowCanvas.TextureFilteringEnabled = filterTextures
 		_textureCanvas.TextureFilteringEnabled = filterTextures
@@ -301,11 +260,7 @@ Class RenderWindow Extends Window
 		OnDraw()
 	End
 	
-	Method DrawLoadingScreen() Virtual
-	End	
-	
 	Method DebugInfo() Virtual
-		Echo( "Update time: " + Cast<String>( _updateDuration ).Slice( 0, 4 ) + "ms, Render time:" + Cast<String>( _renderDuration ).Slice( 0, 4 ) + "ms" )
 		Echo( "Window resolution: " + Frame.Width + ", " + Frame.Height )
 		Echo( "Virtual resolution: " + Width + ", " + Height )
 		Echo( "Camera: " + camera.ToString() )
@@ -343,10 +298,8 @@ Class RenderWindow Extends Window
 
 	'**************************************************** Static functions ****************************************************
 	
-	Function Echo( text:String, ignoreDebug:Bool = False )
-		If debug Or ignoreDebug
-			_echoStack.Push( text )
-		End
+	Function Echo( text:String )
+		_echoStack.Push( text )
 	End
 	
 End
